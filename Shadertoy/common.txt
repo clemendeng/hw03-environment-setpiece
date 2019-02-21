@@ -1,0 +1,170 @@
+//Color for 2d sdfs
+vec3 lineCol(float f, float a, float b) {
+    vec3 col = mix(vec3(139, 97, 130) * 0.8 / 255.f, vec3(0), smoothstep(0.f, b, f));
+    if(f < a) {
+        col = vec3(254, 241, 250) / 255.f;
+    }
+    return col;
+}
+
+vec3 lampCol(float f, float a, float b) {
+    vec3 col = mix(vec3(248, 218, 114) * 0.8 / 255.f, vec3(0), smoothstep(0.f, b, f));
+    if(f < a) {
+        col = vec3(248, 218, 114) / 255.f;
+    }
+    return col;
+}
+
+vec2 random2( vec2 p , vec2 seed) {
+    return fract(sin(vec2(dot(p + seed, vec2(311.7, 127.1)), dot(p + seed, vec2(269.5, 183.3)))) * 85734.3545);
+}
+
+vec2 worleyPoint(int x, int y, float seed) {
+  //The random point inside grid cell (x, y)
+  return random2(vec2(13.72 * float(x) * seed, 2.38 * float(y) * seed), vec2(0.28, 0.328));
+}
+
+float worley(vec2 pos, float seed) {
+  //Calculating which unit the pixel lies in
+  int x = int(floor(pos[0]));
+  int y = int(floor(pos[1]));
+  //Calculating closest distance
+  float dist = 100000.f;
+  for(int i = x - 1; i < x + 2; i++) {
+    for(int j = y - 1; j < y + 2; j++) {
+      vec2 point = vec2(float(i) + worleyPoint(i, j, seed)[0], float(j) + worleyPoint(i, j, seed)[1]);
+      if(distance(pos, point) < dist) {
+        dist = distance(pos, point);
+      }
+    }
+  }
+  return clamp(dist, 0.f, 1.f);
+}
+
+float fbmWorley(vec2 pos, float octaves, float seed) {
+  float total = 0.f;
+  float persistence = 0.5f;
+
+  for(float i = 0.f; i < octaves; i++) {
+    float freq = pow(2.f, i);
+    //divide by 2 so that max is 1
+    float amp = pow(persistence, i) / 2.f;
+    total += worley(pos * float(freq), seed) * amp;
+  }
+
+  return total;
+}
+
+
+float sdCircle( vec2 p, float r )
+{
+    return length(p) - r;
+}
+
+float sdLine( in vec2 p, in vec2 a, in vec2 b )
+{
+	vec2 pa = p-a, ba = b-a;
+	float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+	return length( pa - ba*h );
+}
+
+float dot2( in vec2 v ) { return dot(v,v); }
+
+float sdSphere(vec3 p, float r) {
+  	return length(p) - r;
+}
+
+float sdBox( vec3 p, vec3 b ) {
+    vec3 d = abs(p) - b;
+    return length(max(d,0.0)) + min(max(d.x,max(d.y,d.z)),0.0);
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+    return length( pa - ba*h ) - r;
+}
+
+float sdCappedCylinder( vec3 p, vec2 h ) {
+    vec2 d = abs(vec2(length(p.xz),p.y)) - h;
+    return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+}
+
+float sdCappedCone( in vec3 p, in float h, in float r1, in float r2 ) {
+    vec2 q = vec2( length(p.xz), p.y );
+
+    vec2 k1 = vec2(r2,h);
+    vec2 k2 = vec2(r2-r1,2.0*h);
+    vec2 ca = vec2(q.x-min(q.x,(q.y < 0.0)?r1:r2), abs(q.y)-h);
+    vec2 cb = q - k1 + k2*clamp( dot(k1-q,k2)/dot2(k2), 0.0, 1.0 );
+    float s = (cb.x < 0.0 && ca.y < 0.0) ? -1.0 : 1.0;
+    return s*sqrt( min(dot2(ca),dot2(cb)) );
+}
+
+float sdTorus( vec3 p, vec2 t ) {
+    vec2 q = vec2(length(p.xz)-t.x,p.y);
+    return length(q)-t.y;
+}
+
+float opSmoothUnion( float d1, float d2, float k ) {
+    float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return mix( d2, d1, h ) - k*h*(1.0-h);
+}
+
+mat4 translate(float x, float y, float z) {
+    mat4 m = mat4(1);
+    m[3] = vec4(x, y, z, 1);
+   	return m;
+}
+
+vec3 translatep(vec3 p, float x, float y, float z) {
+    mat4 m = mat4(1);
+    m[3] = vec4(x, y, z, 1);
+    return vec3(m * vec4(p, 1));
+}
+
+mat4 rotate(float x, float y, float z) {
+    vec3 r = vec3(x, y, z);
+    r = radians(r);
+    mat4 xr = mat4(1, 0, 0, 0, 
+                  0, cos(r[0]), sin(r[0]), 0,
+                  0, -sin(r[0]), cos(r[0]), 0,
+                  0, 0, 0, 1);
+    mat4 yr = mat4(cos(r[1]), 0, -sin(r[1]), 0,
+                  0, 1, 0, 0,
+                  sin(r[1]), 0, cos(r[1]), 0,
+                  0, 0, 0, 1);
+    mat4 zr = mat4(cos(r[2]), sin(r[2]), 0, 0,
+                  -sin(r[2]), cos(r[2]), 0, 0,
+                  0, 0, 1, 0,
+                  0, 0, 0, 1);
+    return xr * yr * zr;
+}
+
+vec3 rotatep(vec3 p, float x, float y, float z) {
+    vec3 r = vec3(x, y, z);
+    r = radians(r);
+    mat4 xr = mat4(1, 0, 0, 0, 
+                  0, cos(r[0]), sin(r[0]), 0,
+                  0, -sin(r[0]), cos(r[0]), 0,
+                  0, 0, 0, 1);
+    mat4 yr = mat4(cos(r[1]), 0, -sin(r[1]), 0,
+                  0, 1, 0, 0,
+                  sin(r[1]), 0, cos(r[1]), 0,
+                  0, 0, 0, 1);
+    mat4 zr = mat4(cos(r[2]), sin(r[2]), 0, 0,
+                  -sin(r[2]), cos(r[2]), 0, 0,
+                  0, 0, 1, 0,
+                  0, 0, 0, 1);
+    mat4 rotate = xr * yr * zr;
+	return vec3(rotate * vec4(p, 1));
+}
+
+vec3 scalep(vec3 p, float x, float y, float z) {
+    mat4 m = mat4(1);
+    m[0][0] = x;
+    m[1][1] = y;
+    m[2][2] = z;
+    return vec3(m * vec4(p, 1));
+}

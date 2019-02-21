@@ -1,0 +1,138 @@
+//Clouds and 2d circles
+
+float bias(float b, float t) {
+    return pow(t, log(b) / log(0.5f));
+}
+
+float gain(float g, float t) {
+    if(t < 0.5f) {
+        return bias(1.f-g, 2.f*t) / 2.f;
+    } else {
+        return 1.f - bias(1.f-g, 2.f - 2.f * t) / 2.f;
+    }
+}
+
+float falloff(float t) {
+    return t*t*t*(t*(t*6.f - 15.f) + 10.f);
+}
+
+float lerp(float a, float b, float t) {
+    return (1.0 - t) * a + t * b;
+}
+
+//ix and iy are the corner coordinates
+float dotGridGradient(int ix, int iy, float x, float y, float seed) {
+    vec2 dist = vec2(x - float(ix), y - float(iy));
+    vec2 rand = (random2(vec2(ix, iy), vec2(seed, seed * 2.139)) * 2.f) - 1.f;
+    return dist[0] * rand[0] + dist[1] * rand[1];
+}
+
+//Perlin returns a value in [-1, 1]
+float perlin(vec2 pos, float seed) {
+    //Pixel lies in (x0, y0)
+    int x0 = int(floor(pos[0]));
+    int x1 = x0 + 1;
+    int y0 = int(floor(pos[1]));
+    int y1 = y0 + 1;
+
+    float wx = falloff(pos[0] - float(x0));
+    float wy = falloff(pos[1] - float(y0));
+
+    float n0, n1, ix0, ix1, value;
+    n0 = dotGridGradient(x0, y0, pos[0], pos[1], seed);
+    n1 = dotGridGradient(x1, y0, pos[0], pos[1], seed);
+    ix0 = lerp(n0, n1, wx);
+    n0 = dotGridGradient(x0, y1, pos[0], pos[1], seed);
+    n1 = dotGridGradient(x1, y1, pos[0], pos[1], seed);
+    ix1 = lerp(n0, n1, wx);
+    value = lerp(ix0, ix1, wy);
+
+    return value;
+}
+
+float dampen(float t) {
+    if(t < 0.4) {
+        return pow(t / 0.4, 3.f) * 0.4;
+    }
+    return t;
+}
+
+float fbmPerlin(vec2 pos, float octaves, float seed) {
+    float total = 0.f;
+    float persistence = 0.5;
+
+    for(float i = 0.f; i < octaves; i++) {
+        float freq = pow(2.f, i);
+        //divide by 2 so that max is 1
+        float amp = pow(persistence, i) / 2.f;
+        total += ((perlin(pos * float(freq), seed) + 1.f) / 2.f) * amp;
+    }
+
+    return clamp(total, 0.f, 1.f);
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec2 uv = (fragCoord/iResolution.xy);
+    vec3 col = vec3(texture(iChannel0, uv));
+    
+    vec2 uv1 = uv + vec2(iTime / 100.f, 0);
+    vec2 uv2 = uv + vec2(iTime / 20.f, 0);
+
+    float noise = dampen(gain(0.98, fbmPerlin(uv1 * 2.f, 10.f, 1.328)));
+    vec3 clouds1 = vec3(60, 56, 147) * noise / 255.f;
+    
+    noise = dampen(gain(0.98, fbmPerlin(uv1 * 2.f, 10.f, 1.89)));
+	vec3 clouds2 = vec3(80, 80, 160) * noise / 255.f;
+    
+    noise = smoothstep(0.50, 0.7, fbmPerlin(uv2 * 2.f, 10.f, 4.945));
+    vec3 clouds3 = vec3(217, 93, 159) * noise / 255.f;
+    
+    vec3 clouds = clouds1 + clouds2;
+    col = clouds * 0.2 + col * 0.8;
+    col = clamp(col + clouds3 * 0.3, 0.f, 1.f);
+    
+    //AntiAliased 2d circles
+    vec2 uv2d = (2.0*fragCoord.xy-iResolution.xy)/min(iResolution.x,iResolution.y);
+    float pixelLength = 1.f / min(iResolution.x, iResolution.y);
+    float delta = pixelLength / 8.f;
+    vec3 targetPath = vec3(0);
+    
+    float time = fract(iTime / 4.f);
+    float scaleTime = clamp((1.f - time) * 1.4, 0.f, 1.f);
+    float time2 = fract(fract(iTime / 4.f) + 0.5);
+    float scaleTime2 = clamp((1.f - time2) * 1.4, 0.f, 1.f);
+    float scale = 1.5;
+    
+    for(float i = 0.f; i < 4.f; i++) {
+        for(float j = 0.f; j < 4.f; j++) {
+            vec2 uvaa = uv2d - vec2(delta * 3.f) + vec2(2.f * delta * i, 2.f * delta * j);
+            vec3 pathCol = col;
+            
+            float f = abs(sdCircle(uvaa - vec2(0, 0.98), time * scale));
+            if(f < 0.03) {
+                pathCol += lineCol(f, 0.003, 0.03) * scaleTime;
+            }
+            f = abs(sdCircle(uvaa - vec2(0, 0.98), 0.03 + time * scale));
+            if(f < 0.015) {
+                pathCol += lineCol(f, 0.001, 0.01) * scaleTime;
+            }
+            f = abs(sdCircle(uvaa - vec2(0, 0.98), time2 * scale));
+            if(f < 0.03) {
+                pathCol += lineCol(f, 0.003, 0.03) * scaleTime2;
+            }
+            f = abs(sdCircle(uvaa - vec2(0, 0.98), 0.03 + time2 * scale));
+            if(f < 0.015) {
+                pathCol += lineCol(f, 0.001, 0.01) * scaleTime2;
+            }
+            f = abs(sdCircle(uvaa - vec2(0, 0.98), 0.03 + 1.5));
+            if(f < 0.015) {
+                pathCol += lineCol(f, 0.001, 0.01) * 0.2;
+            }
+            targetPath += pathCol;
+        }
+        
+    }
+    col = targetPath / 16.f;
+    fragColor = vec4(col, 1);
+}

@@ -1,0 +1,458 @@
+//Modeled from
+//https://static.altchar.com/live/media/images/950x633_ct/12584_Gris_Main_14fc95a9fef14e6387b2652bf4aea33d.jpg
+//Resources
+//https://www.shadertoy.com/view/ldfGWH
+//https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
+//https://www.iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+//https://iquilezles.org/www/articles/rmshadows/rmshadows.htm
+//https://www.shadertoy.com/view/MdXSWn
+
+//ask about antialiasing iq snail
+
+float getScale(int id) {
+  	//insert ids here if using scale
+  	if(id == 0) {
+    	return 1.f;
+  	}
+  	return 1.f;
+}
+
+mat4 getTransform(int id) {
+  	if(id == 0) {
+        return translate(0.f, -4.f, 0.f);
+    } else if(id == 1) {
+        return translate(0.f, 0.5, 0.f);
+    } else if(id == 2) {
+        return translate(0.f, -1.1, 0.f);
+    }
+}
+
+float getSDF(int id, vec3 p) {
+  	if(id == 0) {
+        //base structure
+        float leg1 = sdCappedCylinder(translatep(p, .9, 2.0, 0.f), vec2(0.2, 0.5));
+        float leg2 = sdCappedCylinder(translatep(p, -.9, 2.0, 0.f), vec2(0.2, 0.5));
+        float base = sdCappedCylinder(translatep(p, 0.f, 1.0, 0.f), vec2(1.1, 0.5));
+        float body = sdTorus(translatep(p, 0.f, 0.1, 0.f), vec2(.9, .6));
+        float cap = sdSphere(translatep(p, 0.f, -.42, 0.f), 1.1);
+        float top = sdCappedCylinder(translatep(p, 0.f, -1.05, 0.f), vec2(.6, .5));
+        cap = opSmoothUnion(cap, top, 0.2);
+        float legs = min(leg1, leg2);
+        float bottom = min(legs, base);
+        body = min(bottom, body);
+        return min(body, cap);
+    } else if(id == 1) {
+        //top
+        float leg1 = sdCappedCylinder(translatep(p, .38, 0.f, 0.f), vec2(0.17, 0.25));
+        float leg2 = sdCappedCylinder(translatep(p, -.38, 0.f, 0.f), vec2(0.17, 0.25));
+        float legs = min(leg1, leg2);
+        float base = sdCappedCylinder(translatep(p, 0.f, -.18, 0.f), vec2(.4, .2));
+        base = opSmoothUnion(legs, base, 0.4);
+        float rise = sdCappedCone(vec3(translate(0.f, 0.4, 0.f) * rotate(180.f, 0.f, 0.f)
+                                 * vec4(p, 1)), 0.15, 0.8, 0.6);
+        float cap = sdSphere(translatep(scalep(p, 0.39, 1.f, 0.39), 0.f, -0.6, 0.f), 0.3);
+        cap = min(rise, cap);
+        float top = sdSphere(translatep(scalep(p, 1.f, 1.1, 1.f), 0.f, -1.65, 0.f), 0.7);
+        float bound = sdBox(translatep(p, 0.f, -1.1, 0.f), vec3(0.7, 0.35, 0.7));
+        top = max(bound, top);
+        top = min(cap, top);
+        base = min(base, top);
+        return base;
+    } else if(id == 2) {
+        //supports
+        float leg1 = sdCappedCylinder(translatep(p, .4, 0.f, 0.f), vec2(0.17, 1.35));
+        float leg2 = sdCappedCylinder(translatep(p, -.4, 0.f, 0.f), vec2(0.17, 1.35));
+        float legs = min(leg1, leg2);
+        return legs;
+    }
+}
+
+vec3 getBoundDimensions(int id) {
+    if(id == 0) {
+        return vec3(1.3, 2.0, 1.3);
+    } else if(id == 1) {
+        return vec3(1, 1.5, 1);
+    } else if(id == 2) {
+        return vec3(0.6, 1.4, 0.2);
+    }
+}
+
+vec3 getColor(int id) {
+    vec3 target = vec3(255, 255, 255);
+    if(id == 0) {
+        target = vec3(124, 216, 243);
+    } else if(id == 1) {
+        target = vec3(124, 216, 243);
+    } else if(id == 2) {
+        target = vec3(200, 200, 220) * 0.5;
+    }
+    return target / 255.f;
+}
+
+vec3 getMinBound(int id) {
+    vec3 p = getBoundDimensions(id);
+
+    vec3 ooo = vec3(getTransform(id) * vec4(p * vec3(-1, -1, -1), 1));
+    vec3 ooi = vec3(getTransform(id) * vec4(p * vec3(-1, -1, 1), 1));
+    vec3 oio = vec3(getTransform(id) * vec4(p * vec3(-1, 1, -1), 1));
+    vec3 oii = vec3(getTransform(id) * vec4(p * vec3(-1, 1, 1), 1));
+    vec3 ioo = vec3(getTransform(id) * vec4(p * vec3(1, -1, -1), 1));
+    vec3 ioi = vec3(getTransform(id) * vec4(p * vec3(1, -1, 1), 1));
+    vec3 iio = vec3(getTransform(id) * vec4(p * vec3(1, 1, -1), 1));
+    vec3 iii = vec3(getTransform(id) * vec4(p * vec3(1, 1, 1), 1));
+
+    vec3 target;
+    for(int i = 0; i < 3; i++) {
+        float minI = min(min(min(ooo[i], ooi[i]), min(oio[i], oii[i])), 
+                         min(min(ioo[i], ioi[i]), min(iio[i], iii[i])));
+        target[i] = minI;
+    }
+    return target;
+}
+
+vec3 getMaxBound(int id) {
+    vec3 p = getBoundDimensions(id);
+
+    vec3 ooo = vec3(getTransform(id) * vec4(p * vec3(-1, -1, -1), 1));
+    vec3 ooi = vec3(getTransform(id) * vec4(p * vec3(-1, -1, 1), 1));
+    vec3 oio = vec3(getTransform(id) * vec4(p * vec3(-1, 1, -1), 1));
+    vec3 oii = vec3(getTransform(id) * vec4(p * vec3(-1, 1, 1), 1));
+    vec3 ioo = vec3(getTransform(id) * vec4(p * vec3(1, -1, -1), 1));
+    vec3 ioi = vec3(getTransform(id) * vec4(p * vec3(1, -1, 1), 1));
+    vec3 iio = vec3(getTransform(id) * vec4(p * vec3(1, 1, -1), 1));
+    vec3 iii = vec3(getTransform(id) * vec4(p * vec3(1, 1, 1), 1));
+
+    vec3 target;
+    for(int i = 0; i < 3; i++) {
+        float maxI = max(max(max(ooo[i], ooi[i]), max(oio[i], oii[i])), 
+                         max(max(ioo[i], ioi[i]), max(iio[i], iii[i])));
+        target[i] = maxI;
+    }
+    return target;
+}
+
+//Returns range of t [min, max] in bounding box, -1000 if doesn't hit
+vec2 testObjBox(int id, vec3 origin, vec3 dir) {
+    vec3 minp = getMinBound(id);
+    vec3 maxp = getMaxBound(id);
+    float mins[3];
+    float maxes[3];
+    for(int i = 0; i < 3; ++i) {
+        mins[i] = (minp[i] - origin[i]) / dir[i];
+        maxes[i] = (maxp[i] - origin[i]) / dir[i];
+        if(mins[i] > maxes[i]) {
+            float tmp = mins[i];
+            mins[i] = maxes[i];
+            maxes[i] = tmp;
+        }
+    }
+    float minT = max(mins[0], max(mins[1], mins[2]));
+    float maxT = min(maxes[0], min(maxes[1], maxes[2]));
+    if(minT > maxT) {
+        return vec2(-1000.f, -1000.f);
+    }
+    return vec2(minT, maxT);
+}
+
+vec3 getNormal(int id, vec3 p) {
+    float EPSILON = 0.01;
+    return normalize(vec3(
+        getSDF(id, vec3(p.x + EPSILON, p.y, p.z)) - getSDF(id, vec3(p.x - EPSILON, p.y, p.z)),
+        getSDF(id, vec3(p.x, p.y + EPSILON, p.z)) - getSDF(id, vec3(p.x, p.y - EPSILON, p.z)),
+        getSDF(id, vec3(p.x, p.y, p.z + EPSILON)) - getSDF(id, vec3(p.x, p.y, p.z - EPSILON))
+    ));
+}
+
+float hitsObj(vec3 ro, vec3 rd, float maxT) {
+    //Parameters
+    int steps = 3000;
+    const int numPrimitives = 3;
+    //-1000 if ray won't hit object, else holds minT value (bounding box)
+    float testObjs[numPrimitives] = float[](-1000.f, -1000.f, -1000.f);
+
+    float t = 0.00001;
+    vec3 curr = ro;
+    float dist;
+    float res = 1.f;
+    float k = 30.f;
+
+    for(int id = 0; id < numPrimitives; id++) {
+        vec2 minMax = testObjBox(id, ro, rd);
+        if(minMax[0] > -900.f) {
+            //hits bounding box
+            testObjs[id] = minMax[0];
+        }
+    }
+
+    do {
+        dist = 10000.f;
+        for(int id = 0; id < numPrimitives; id++) {
+            //Check if hits object's bounding box
+            if(testObjs[id] > -900.f) {
+                //Test ray with untransformed object
+                vec3 temp = vec3(inverse(getTransform(id)) * vec4(curr, 1));
+                float currDist = getSDF(id, temp) * getScale(id);
+                if(currDist < dist) {
+                    dist = currDist;
+                }
+                //Intersects object id
+                if(currDist < 0.0005) {
+                    return 0.f;
+                }
+                //Soft shadows
+                res = min( res, k*currDist/t );
+            }
+        }
+        steps = steps - 1;
+        t += dist;
+        curr = ro + rd * t;
+    } while(dist >= 0.0001 && steps > 0 && t < maxT);
+
+    return res;
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    // Normalized pixel coordinates (from -1 to 1)
+    vec2 uv = (fragCoord * 2.0 /iResolution.xy) - vec2(1, 1);
+    vec2 uv01 = (fragCoord/iResolution.xy);
+    
+   	vec3 u_Eye = vec3(0, 0, -10);
+    vec3 u_Ref = vec3(0, 0, 0);
+    vec3 u_Up = vec3(0, 1, 0);
+    float fovy = 45.f;
+    float aspect = iResolution.x / iResolution.y;
+    float len = length(u_Ref - u_Eye);
+    vec3 F = normalize(u_Ref - u_Eye);
+    vec3 R = normalize(cross(u_Up, F));
+    vec3 V = vec3(u_Up * len * tan(fovy / 2.f));
+    vec3 H = vec3(R * len * aspect * tan(fovy / 2.f));
+    vec3 world = u_Ref + uv.x * H + uv.y * V;
+    //Calculating ray
+    vec3 ray_origin = u_Eye;
+    vec3 ray_direction = normalize(world - u_Eye);
+
+    //Background
+    vec3 col = vec3(texture(iChannel0, uv01));
+
+    //Parameters
+    int steps = 300;
+    float maxT = 200.f;
+    const int numPrimitives = 3;
+    //-1000 if ray won't hit object, else holds minT value (bounding box)
+    float testObjs[numPrimitives] = float[](-1000.f, -1000.f, -1000.f);
+
+    vec3 curr = ray_origin;
+    float t = 0.f;
+    float dist;
+    //What we want
+    int minObject = -1;
+    vec3 intersection;
+    vec3 normal;
+
+    t = 10000.f;
+    for(int id = 0; id < numPrimitives; id++) {
+        vec2 minMax = testObjBox(id, ray_origin, ray_direction);
+        if(minMax[0] > -900.f) {
+            //hits bounding box
+            if(minMax[0] < t) {
+                //closest bounding box hit
+                t = minMax[0];
+            }
+            testObjs[id] = minMax[0];
+        }
+    }
+    curr = ray_origin + t * ray_direction;
+
+    do {
+        dist = 10000.f;
+        for(int id = 0; id < numPrimitives; id++) {
+            //Check if hits object's bounding box
+            if(testObjs[id] > -900.f) {
+                //Test ray with untransformed object
+                vec3 temp = vec3(inverse(getTransform(id)) * vec4(curr, 1));
+                float currDist = getSDF(id, temp) * getScale(id);
+                if(currDist < dist) {
+                    dist = currDist;
+                }
+                //Intersects object id
+                if(currDist < 0.001) {
+                    minObject = id;
+                    intersection = temp;
+                    normal = normalize(mat3(inverse(transpose(getTransform(id)))) * getNormal(id, intersection));
+                    intersection = vec3(getTransform(id) * vec4(intersection, 1));
+                }
+            }
+        }
+        steps = steps - 1;
+        t += dist;
+        curr = ray_origin + ray_direction * t;
+    } while(dist >= 0.001 && steps > 0 && t < maxT);
+
+    if(minObject > -1) {
+        vec3 color = getColor(minObject);
+        vec3 toEye = normalize(u_Eye - intersection);
+        float k = 80.f;
+        
+        if(minObject != 2) {
+            float rFactor = worley(vec2(intersection.xy) * 0.8, 1.4893);
+            color.r += rFactor;
+        }
+        //Green light
+        vec3 greenCol = vec3(0.2, 0.7, 0.2);
+        vec3 greenPos = vec3(-3, 0, -5);
+        vec3 toGreen = normalize(greenPos - intersection);
+        float intensityGreen = dot(toGreen, normal);
+        float specIntensityGreen = pow(clamp(dot(normal, (toGreen + toEye) / 2.f), 0.f, 1.f), k);
+        //Blue light
+        vec3 blueCol = vec3(0.2, 0.2, 0.7);
+        vec3 bluePos = vec3(3, 0, -5);
+        vec3 toBlue = normalize(bluePos - intersection);
+        float intensityBlue = dot(toBlue, normal);
+        float specIntensityBlue = pow(clamp(dot(normal, (toBlue + toEye) / 2.f), 0.f, 1.f), k);
+        //Lamp
+        vec3 lampCol = vec3(248, 218, 114) / 255.f;
+        vec3 lampPos = vec3(0, 0.15, 0);
+        vec3 toLamp = normalize(lampPos - intersection);
+        float intensityLamp = clamp(dot(toLamp, normal), 0.f, 1.f);
+        float lamp = hitsObj(intersection + normal * 0.01, toLamp, length(lampPos - intersection));
+        //ambient + diffuse
+        color = color * 0.25 + 
+                greenCol * color * intensityGreen * 0.3 + 
+                blueCol * color * intensityBlue * 0.3 + 
+                lamp * lampCol * color * intensityLamp * 1.f;
+        if(minObject == 1) {
+            color += greenCol * color * specIntensityGreen * 20.f + 
+                	 blueCol * color * specIntensityBlue * 20.f;
+        }
+        color = clamp(color, 0.f, 1.f);
+        // post
+        color=pow(color,vec3(0.5)); 
+        //color=color*0.0+1.f*color*color*(3.0-2.0*color);  // contrast
+        color=mix(color, vec3(dot(color, vec3(0.33))), -0.3);  // satuation
+        //transparent
+        if(minObject == 2) {
+            color = pow(color, vec3(0.2));
+            col = 0.15 * color + 0.85 * col;
+        } else {
+        	col = 0.7 * color + 0.3 * col;
+        }
+    }
+    
+    //---------------------------------------------------------------------------------
+    
+    //AntiAliasing for path
+    vec2 uv2d = (2.0*fragCoord.xy-iResolution.xy)/min(iResolution.x,iResolution.y);
+    float pixelLength = 1.f / min(iResolution.x, iResolution.y);
+    float delta = pixelLength / 8.f;
+    vec3 targetPath = vec3(0);
+    for(float i = 0.f; i < 4.f; i++) {
+        for(float j = 0.f; j < 4.f; j++) {
+            vec2 uvaa = uv2d - vec2(delta * 3.f) + vec2(2.f * delta * i, 2.f * delta * j);
+            vec3 pathCol = col;
+            vec3 add = vec3(0.f);
+            //Bottom two
+            if(uvaa.y < -0.4 && uvaa.x > 0.3 && uvaa.x < 1.1) {
+                float f = sdLine(uvaa, vec2(0, -1.2), vec2(1, -0.8));
+                if(f < 0.015) {
+                    add = max(add, lineCol(f, 0.003, 0.02));
+                }
+                f = sdLine(uvaa, vec2(1, -0.8), vec2(0.4, -0.45));
+                if(f < 0.015) {
+                    add = max(add, lineCol(f, 0.003, 0.02));
+                }
+                f = sdCircle(uvaa - vec2(1, -0.8), 0.015);
+                if(f < 0.04) {
+                    add = max(add, lineCol(f, 0.001, 0.04));
+                }
+            }
+            if(uvaa.x > -0.6 && uvaa.x < 0.5) {
+            	//Middle segments
+                if(uvaa.y > -0.5 && uvaa.y < -0.3) {
+                    float f = sdLine(uvaa, vec2(0.4, -0.45), vec2(-0.25, -0.35));
+                    if(f < 0.015) {
+                        add = max(add, lineCol(f, 0.003, 0.02));
+                    }
+                    f = sdCircle(uvaa - vec2(0.4, -0.45), 0.015);
+                    if(f < 0.04) {
+                        add = max(add, lineCol(f, 0.001, 0.04));
+                    }
+                    f = sdLine(uvaa, vec2(-0.25, -0.35), vec2(-0.5, -0.33));
+                    if(f < 0.015) {
+                        add = max(add, lineCol(f, 0.003, 0.02));
+                    }
+                    f = sdCircle(uvaa - vec2(-0.25, -0.35), 0.008);
+                    if(f < 0.02) {
+                        add = max(add, lineCol(f, 0.001, 0.02));
+                    }
+                }
+                //Lamp
+                if(uvaa.y > -0.5 && uvaa.y < 1.f) {
+                    float f = sdCircle(uvaa / vec2(1, 1.5) - vec2(0, 0.015), 0.015);
+                    if(f < 0.001) {
+                        add = max(add, lampCol(f, 0.001, 0.5));
+                    }
+                    f = sdCircle(uvaa - vec2(0, 0.019), 0.008);
+                    if(f < 0.06) {
+                        add += max(add, lampCol(f, 0.0, 0.06));
+                    }
+                }
+            }
+            //Left part
+            if(uvaa.x > -1.1 && uvaa.x < -0.4) {
+                if(uvaa.y > -0.4 && uvaa.y < 0.1) {
+                    float f = sdLine(uvaa, vec2(-0.5, -0.33), vec2(-1, -0.05));
+                    if(f < 0.015) {
+                        add = max(add, lineCol(f, 0.003, 0.02));
+                    }
+                    f = sdCircle(uvaa - vec2(-0.5, -0.33), 0.015);
+                    if(f < 0.04) {
+                        add = max(add, lineCol(f, 0.001, 0.04));
+                    }
+                }
+                if(uvaa.y > -0.15 && uvaa.y < 0.2) {
+                    float f = sdLine(uvaa, vec2(-1, -0.05), vec2(-0.625, 0.12));
+                    if(f < 0.015) {
+                        add = max(add, lineCol(f, 0.003, 0.02));
+                    }
+                    f = sdCircle(uvaa - vec2(-1, -0.05), 0.015);
+                    if(f < 0.04) {
+                        add = max(add, lineCol(f, 0.001, 0.04));
+                    }
+                }
+                if(uvaa.y > 0.f && uvaa.y < 0.3) {
+                    float f = sdLine(uvaa, vec2(-0.625, 0.12), vec2(-0.49, 0.23));
+                    if(f < 0.015) {
+                        add = max(add, lineCol(f, 0.003, 0.02));
+                    }
+                    f = sdCircle(uvaa - vec2(-0.625, 0.12), 0.008);
+                    if(f < 0.02) {
+                        add = max(add, lineCol(f, 0.001, 0.02));
+                    }
+                }
+            }
+            //Top
+            if(uvaa.y > 0.2 && uvaa.y < 0.4 && uvaa.x > -0.6 && uvaa.x < -0.1) {
+                float f = sdLine(uvaa, vec2(-0.49, 0.23), vec2(-0.18, 0.34));
+                if(f < 0.015) {
+                    add = max(add, lineCol(f, 0.003, 0.02));
+                }
+                f = sdCircle(uvaa - vec2(-0.49, 0.23), 0.008);
+                if(f < 0.02) {
+                    add = max(add, lineCol(f, 0.001, 0.02));
+                }
+                f = sdCircle(uvaa - vec2(-0.18, 0.34), 0.015);
+                if(f < 0.04) {
+                    add = max(add, lineCol(f, 0.001, 0.04));
+                }
+            }
+            pathCol += add;
+            targetPath += pathCol;
+        }
+    }
+    col = targetPath / 16.f;
+    col*=0.5+0.7*pow(16.0*uv01.x*uv01.y*(1.0-uv01.x)*(1.0-uv01.y),0.5);  // vigneting
+    col = clamp(col, 0.f, 1.f);
+    // Output to screen
+    fragColor = vec4(col,1.0);
+}
