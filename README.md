@@ -52,4 +52,7 @@ With post-processing:
 
 ![](main.png)
 
+#### Anti-Aliasing
+The 2D SDFs are antialiased, which slightly improved the quality of the lines.
+
 I was going to do more but then shadertoy kept crashing everytime I tried to add something and compile so it is done
