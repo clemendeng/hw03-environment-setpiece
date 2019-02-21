@@ -7,8 +7,6 @@
 //https://iquilezles.org/www/articles/rmshadows/rmshadows.htm
 //https://www.shadertoy.com/view/MdXSWn
 
-//ask about antialiasing iq snail
-
 float getScale(int id) {
   	//insert ids here if using scale
   	if(id == 0) {

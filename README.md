@@ -4,8 +4,7 @@ Clemen Deng (PennKey: clemen)
 
 ![](main.png)
 
-This project is created using ray marched signed distance functions. Viewing this project
-requires a WebGL capable browser. Resources are noted in shader, as well as the image that this project was modeled after.
+This project is created using ray marched signed distance functions. Viewing this project requires a WebGL capable browser. Resources are noted in shader, as well as the image that this project was modeled after. Shader code at time of submission is in text files in the shadertoy folder.
 
 [Shadertoy](https://www.shadertoy.com/view/WsSGDy)
 
